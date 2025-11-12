@@ -1,5 +1,9 @@
 %{
 #include <stdio.h>
+/**
+ * @brief print the token
+ * @param name - the name of the token
+*/
 void ShowToken(const char* name);
 %}
 

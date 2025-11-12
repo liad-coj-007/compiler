@@ -1,5 +1,7 @@
 %{
 #include <stdio.h>
+#include <stdlib.h>
+
 /**
  * @brief print the token
  * @param name - the name of the token
@@ -15,6 +17,12 @@ void PrintStr();
  * @brief printing a backslash cmd
 */
 void PrintBlackSlash();
+
+
+/**
+ * @brief print the hex number
+*/
+void PrintHex();
 
 
 %}
@@ -40,8 +48,11 @@ quote  "\""
 forbid_chars [\042\092\012\015]
 
 str_letters ^{forbid_chars}
-
 str_cmd {blackslash}|"n"|"r"|"t"|"\""
+
+digit [0-9]
+hex_sign [A-F]
+hex_num x({digit}|{hex_sign})({digit}|{hex_sign})
 
 %x STRING
 
@@ -51,6 +62,7 @@ str_cmd {blackslash}|"n"|"r"|"t"|"\""
 
 {mul}|{sub}|{plus}|{div}     {ShowToken("BinOp");}
 {relop}                      {ShowToken("RelOp");}
+
 {quote}                      {BEGIN(STRING);printf("=======begin string====\n");}
 
 <STRING>{quote}             { BEGIN(INITIAL); printf("\n========ending string====\n"); }
@@ -59,7 +71,7 @@ str_cmd {blackslash}|"n"|"r"|"t"|"\""
 <STRING>{blackslash} {BEGIN(STRCMD);}
 
 <STRCMD>{str_cmd}       {PrintBlackSlash();BEGIN(STRING);}
-
+<STRCMD>{hex_num}       {PrintHex();BEGIN(STRING);}
 
 %%
 
@@ -100,4 +112,9 @@ void PrintBlackSlash(){
    
 
 
+}
+
+void PrintHex(){
+    char value = strtol(yytext + 1, NULL, 16);
+    printf("%c",value);
 }

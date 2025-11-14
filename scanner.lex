@@ -1,120 +1,155 @@
 %{
 #include <stdio.h>
 #include <stdlib.h>
-
-/**
- * @brief print the token
- * @param name - the name of the token
-*/
-void ShowToken(const char* name);
-
-/**
- * @brief print the string u got from the user
-*/
-void PrintStr();
-
-/**
- * @brief printing a backslash cmd
-*/
-void PrintBlackSlash();
+#include "output.hpp"
 
 
-/**
- * @brief print the hex number
-*/
-void PrintHex();
+///**
+// * @brief --description--
+//*/
+//--decleartion--
+
+char string_buffer[1024];               // buffer to hold string
+int string_len = 0;                     // length of the string
+
+int hexToInt(char c);                   // convert hex char to int
+int processHex(int i);                  // converts hex from string buffer to int
+int processEscapeSequence(int i);       // covert escape sequence from string buffer to char
+void processString();                   // deal with escape sequences in strings
+void printToken(enum tokentype token);  // print token function
 
 
 %}
 
 %option yylineno
 %option noyywrap
-mul  \*
-plus \+
-div "/"
-sub -
 
-eq "="
-gt ">"
-lt "<"
-not "!"
- 
-cmp_op {gt}|{lt}
-relop {cmp_op}{eq}?|({eq}|{not}){eq}
+LETTER      ([a-z]|[A-Z])
+DIGIT       [0-9]
+NOT0DIGIT   [1-9]
+CHAR   [\x20-\x21\x23-\x7E]
 
-blackslash "\\"
-quote  "\""
+ID          {LETTER}({LETTER}|{DIGIT})*
+NUM         (0|{NOT0DIGIT}{DIGIT}*)
+NUM_B       {NUM}b
 
-forbid_chars [\042\092\012\015]
+RELOP       (>=?|<=?|==|!=)
+BINOP       (\+|\-|\*|\/)
 
-str_letters ^{forbid_chars}
-str_cmd {blackslash}|"n"|"r"|"t"|"\""
+BACKSLASH   \\
+QUOTE       \"
+WHITE_SPACE [ \t\r\n ]
 
-digit [0-9]
-hex_sign [A-F]
-hex_num x({digit}|{hex_sign})({digit}|{hex_sign})
-
-%x STRING
-
-%x STRCMD
+%x COMMENT_STATE
+%x STRING_STATE
 
 %%
 
-{mul}|{sub}|{plus}|{div}     {ShowToken("BinOp");}
-{relop}                      {ShowToken("RelOp");}
+"void"                      { printToken(VOID); }
+"int"                       { printToken(INT); }
+"byte"                      { printToken(BYTE); }
+"bool"                      { printToken(BOOL); }
+"and"                       { printToken(AND); }
+"or"                        { printToken(OR); }
+"not"                       { printToken(NOT); }
+"true"                      { printToken(TRUE); }
+"false"                     { printToken(FALSE); }
+"return"                    { printToken(RETURN); }
+"if"                        { printToken(IF); }
+"else"                      { printToken(ELSE); }
+"while"                     { printToken(WHILE); }
+"break"                     { printToken(BREAK); }
+"continue"                  { printToken(CONTINUE); }
 
-{quote}                      {BEGIN(STRING);printf("=======begin string====\n");}
+";"                         { printToken(SC); }
+","                         { printToken(COMMA); }
+"("                         { printToken(LPAREN); }
+")"                         { printToken(RPAREN); }
+"{"                         { printToken(LBRACE); }
+"}"                         { printToken(RBRACE); }
+"["                         { printToken(LBRACK); }
+"]"                         { printToken(RBRACK); }
+"="                         { printToken(ASSIGN); }
+{RELOP}                     { printToken(RELOP); }
+{BINOP}                     { printToken(BINOP); }
+{ID}                        { printToken(ID); }
+{NUM}                       { printToken(NUM); }
+{NUM_B}                     { printToken(NUM_B); }
 
-<STRING>{quote}             { BEGIN(INITIAL); printf("\n========ending string====\n"); }
-<STRING>{str_letters}+      { PrintStr(); }
+{WHITE_SPACE}              { /* skip whitespace */ }
 
-<STRING>{blackslash} {BEGIN(STRCMD);}
+"//"                        { BEGIN(COMMENT_STATE); }
+<COMMENT_STATE>[^\n]*       { printToken(COMMENT); BEGIN(INITIAL); }
 
-<STRCMD>{str_cmd}       {PrintBlackSlash();BEGIN(STRING);}
-<STRCMD>{hex_num}       {PrintHex();BEGIN(STRING);}
+{QUOTE}                     { BEGIN(STRING_STATE); }
+<STRING_STATE>{CHAR}        { string_buffer[string_len++] = yytext[0]; }
+<STRING_STATE>{QUOTE}       { processString(); BEGIN(INITIAL); }
+<STRING_STATE>\n            { output::errorUnclosedString(); }
+.                           { output::errorUnknownChar(yytext[0]); }
+
 
 %%
 
 
-void ShowToken(const char* name){
-    printf("<%s, %s>",name,yytext);
+int hexToInt(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1; // invalid hex digit
 }
 
-void PrintStr(){
-    printf("%s",yytext);
-}
-
-void PrintBlackSlash(){
-    char cmd = yytext[0];
-    switch(cmd) {
-        case '\\':
-            putchar('\\');
-            break;
-        case '"':
-            putchar('"');
-            break;
-        case 'n':
-            putchar('\n');   // newline
-            break;
-        case 'r':
-            putchar('\r');   // carriage return
-            break;
-        case 't':
-            putchar('\t');   // tab
-            break;
-        case '0':
-            putchar('\0');   // null char
-            break;
-        default:
-            putchar(cmd);    
-            break;
+int processHex(int i) {
+    char escape[4] = {'x', '\0', '\0', '\0'};
+    if (i == string_len) { output::errorUndefinedEscape(escape); }
+    escape[1] = string_buffer[i];
+    if (i + 1 == string_len) { output::errorUndefinedEscape(escape); }
+    int d1 = hexToInt(escape[1]);
+    if (d1 == -1) { output::errorUndefinedEscape(escape); }
+    escape[2] = string_buffer[i + 1];
+    int d2 = hexToInt(escape[2]);
+    if (d2 == -1) { output::errorUndefinedEscape(escape); }
+    int value = d1 * 16 + d2;
+    if (value < 32 || value > 126) {
+        output::errorUndefinedEscape(escape);
     }
-   
-
-
+    return value;
 }
 
-void PrintHex(){
-    char value = strtol(yytext + 1, NULL, 16);
-    printf("%c",value);
+int processEscapeSequence(int i) {
+    if (i == string_len) {
+        output::errorUndefinedEscape("");
+    }
+    switch (string_buffer[i]) {
+        case '\\':
+            string_buffer[i] = '\\'; return i;
+        case '"':
+            string_buffer[i] = '"'; return i;
+        case 'n':
+            string_buffer[i] = '\n'; return i;
+        case 'r':
+            string_buffer[i] = '\r'; return i;
+        case 't':
+            string_buffer[i] = '\t'; return i;
+        case '0':
+            string_buffer[i] = '\0'; return i;
+        case 'x':
+            string_buffer[i + 2] = processHex(i + 1); return i + 2;
+        default:
+            char escape[2] = {string_buffer[i], '\0'};
+            output::errorUndefinedEscape(escape);
+    }
+}
+
+void processString() {
+    int index = 0;
+    for (int i = 0; i < string_len; i++) {
+        if (string_buffer[i] == '\\') {
+            i = processEscapeSequence(i + 1);
+        }
+        string_buffer[index++] = string_buffer[i];
+    }
+}
+
+void printToken(enum tokentype token) {
+    output::printToken(yylineno, token, yytext);
 }

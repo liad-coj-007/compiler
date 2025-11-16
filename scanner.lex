@@ -1,4 +1,5 @@
 %{
+#define BUFFER_SIZE 1024
 #include <stdio.h>
 #include <stdlib.h>
 #include "output.hpp"
@@ -9,7 +10,7 @@
 //*/
 //--decleartion--
 
-char string_buffer[1024];               // buffer to hold string
+char string_buffer[BUFFER_SIZE] = {0};         // buffer to hold string
 int string_len = 0;                     // length of the string
 
 int hexToInt(char c);                   // convert hex char to int
@@ -18,6 +19,11 @@ int processEscapeSequence(int i);       // covert escape sequence from string bu
 void processString();                   // deal with escape sequences in strings
 void printToken(enum tokentype token);  // print token function
 
+
+/**
+ * @brief empty the buffer of the string
+*/
+void empty_buffer(int size); 
 
 %}
 
@@ -36,12 +42,13 @@ NUM_B       {NUM}b
 RELOP       (>=?|<=?|==|!=)
 BINOP       (\+|\-|\*|\/)
 
-BACKSLASH   \\
+BLACKSLASH   \\
 QUOTE       \"
 WHITE_SPACE [ \t\r\n ]
 
 %x COMMENT_STATE
 %x STRING_STATE
+%x BLACKSLASH_STATE
 
 %%
 
@@ -82,11 +89,17 @@ WHITE_SPACE [ \t\r\n ]
 <COMMENT_STATE>[^\n]*       { printToken(COMMENT); BEGIN(INITIAL); }
 
 {QUOTE}                     { BEGIN(STRING_STATE); }
+<STRING_STATE>{BLACKSLASH}  {string_buffer[string_len++] = yytext[0];
+                            BEGIN(BLACKSLASH_STATE);}
 <STRING_STATE>{CHAR}        { string_buffer[string_len++] = yytext[0]; }
+
 <STRING_STATE>{QUOTE}       { processString(); BEGIN(INITIAL); }
 <STRING_STATE>\n            { output::errorUnclosedString(); }
-.                           { output::errorUnknownChar(yytext[0]); }
 
+<BLACKSLASH_STATE>{CHAR}|{QUOTE} {string_buffer[string_len++] = yytext[0];BEGIN(STRING_STATE);}
+<BLACKSLASH_STATE>\n            { output::errorUnclosedString(); }
+
+.                           { output::errorUnknownChar(yytext[0]); }
 
 %%
 
@@ -119,6 +132,7 @@ int processEscapeSequence(int i) {
     if (i == string_len) {
         output::errorUndefinedEscape("");
     }
+    
     switch (string_buffer[i]) {
         case '\\':
             string_buffer[i] = '\\'; return i;
@@ -148,7 +162,20 @@ void processString() {
         }
         string_buffer[index++] = string_buffer[i];
     }
+    string_buffer[index] = '\0';
+    output::printToken(yylineno,STRING,string_buffer);
+   
+    empty_buffer(string_len);
 }
+
+void empty_buffer(int size){
+    for(int i = 0; i < size;i++){
+        string_buffer[i] = '\0';
+    }
+    string_len = 0;
+}
+
+
 
 void printToken(enum tokentype token) {
     output::printToken(yylineno, token, yytext);

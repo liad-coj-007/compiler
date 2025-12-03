@@ -20,7 +20,10 @@ void printToken(enum tokentype token);  // print token function
  * @brief empty the buffer of the string
 */
 void empty_buffer(int size); 
-
+/**
+ * @brief send a lex error msg
+*/
+void errorLex();
 %}
 
 %option yylineno
@@ -90,12 +93,12 @@ WHITE_SPACE [ \t\r\n ]
 <STRING_STATE>{CHAR}        { string_buffer[string_len++] = yytext[0]; }
 
 <STRING_STATE>{QUOTE}       { processString(); BEGIN(INITIAL); }
-<STRING_STATE>\n            { output::errorUnclosedString(); }
+<STRING_STATE>\n            { errorLex(); }
 
 <BLACKSLASH_STATE>{CHAR}|{QUOTE} {string_buffer[string_len++] = yytext[0];BEGIN(STRING_STATE);}
-<BLACKSLASH_STATE>\n            { output::errorUnclosedString(); }
+<BLACKSLASH_STATE>\n            {  errorLex(); }
 
-.                           { output::errorUnknownChar(yytext[0]); }
+.                           {  errorLex(); }
 
 %%
 
@@ -109,24 +112,24 @@ int hexToInt(char c) {
 
 int processHex(int i) {
     char escape[4] = {'x', '\0', '\0', '\0'};
-    if (i == string_len) { output::errorUndefinedEscape(escape); }
+    if (i == string_len) {  errorLex(); }
     escape[1] = string_buffer[i];
-    if (i + 1 == string_len) { output::errorUndefinedEscape(escape); }
+    if (i + 1 == string_len) {  errorLex(); }
     int d1 = hexToInt(escape[1]);
-    if (d1 == -1) { output::errorUndefinedEscape(escape); }
+    if (d1 == -1) {  errorLex(); }
     escape[2] = string_buffer[i + 1];
     int d2 = hexToInt(escape[2]);
-    if (d2 == -1) { output::errorUndefinedEscape(escape); }
+    if (d2 == -1) { errorLex(); }
     int value = d1 * 16 + d2;
     if (value < 32 || value > 126) {
-        output::errorUndefinedEscape(escape);
+         errorLex();
     }
     return value;
 }
 
 int processEscapeSequence(int i) {
     if (i == string_len) {
-        output::errorUndefinedEscape("");
+        errorLex();
     }
     
     switch (string_buffer[i]) {
@@ -146,7 +149,7 @@ int processEscapeSequence(int i) {
             string_buffer[i + 2] = processHex(i + 1); return i + 2;
         default:
             char escape[2] = {string_buffer[i], '\0'};
-            output::errorUndefinedEscape(escape);
+            errorLex();
     }
 }
 
@@ -159,7 +162,7 @@ void processString() {
         string_buffer[index++] = string_buffer[i];
     }
     string_buffer[index] = '\0';
-    output::printToken(yylineno,STRING,string_buffer);
+    errorLex();
    
     empty_buffer(string_len);
 }
@@ -174,5 +177,9 @@ void empty_buffer(int size){
 
 
 void printToken(enum tokentype token) {
-    output::printToken(yylineno, token, yytext);
+    // output::printToken(yylineno, token, yytext);
+}
+
+void errorLex(){
+    errorLex();
 }

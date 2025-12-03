@@ -1,12 +1,16 @@
-#include "tokens.hpp"
 #include "output.hpp"
+#include "nodes.hpp"
+
+// Extern from the bison-generated parser
+extern int yyparse();
+
+extern std::shared_ptr<ast::Node> program;
 
 int main() {
-    enum tokentype token;
+    // Parse the input. The result is stored in the global variable `program`
+    yyparse();
 
-    // read tokens until the end of file is reached
-    while ((token = static_cast<tokentype>(yylex()))) {
-        // your code here
-    }
-    return 0;
+    // Print the AST using the PrintVisitor
+    output::PrintVisitor printVisitor;
+    program->accept(printVisitor);
 }

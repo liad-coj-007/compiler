@@ -5,10 +5,6 @@
 #include "output.hpp"
 
 
-///**
-// * @brief --description--
-//*/
-//--decleartion--
 
 char string_buffer[BUFFER_SIZE] = {0};         // buffer to hold string
 int string_len = 0;                     // length of the string

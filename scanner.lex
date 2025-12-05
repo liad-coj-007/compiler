@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "output.hpp"
+#include "nodes.hpp"
+#include "tokens.hpp"
+#include "parser.tab.h"
 
 
 
@@ -24,6 +27,9 @@ void empty_buffer(int size);
  * @brief send a lex error msg
 */
 void errorLex();
+
+tokentype AddTokenType( tokentype token);
+
 %}
 
 %option yylineno
@@ -50,55 +56,94 @@ WHITE_SPACE [ \t\r\n ]
 %x BLACKSLASH_STATE
 
 %%
+"void"  {return AddTokenType(TOKEN_VOID);}
 
-"void"                      { printToken(VOID); }
-"int"                       { printToken(INT); }
-"byte"                      { printToken(BYTE); }
-"bool"                      { printToken(BOOL); }
-"and"                       { printToken(AND); }
-"or"                        { printToken(OR); }
-"not"                       { printToken(NOT); }
-"true"                      { printToken(TRUE); }
-"false"                     { printToken(FALSE); }
-"return"                    { printToken(RETURN); }
-"if"                        { printToken(IF); }
-"else"                      { printToken(ELSE); }
-"while"                     { printToken(WHILE); }
-"break"                     { printToken(BREAK); }
-"continue"                  { printToken(CONTINUE); }
+"int"   {return AddTokenType(TOKEN_INT);}
 
-";"                         { printToken(SC); }
-","                         { printToken(COMMA); }
-"("                         { printToken(LPAREN); }
-")"                         { printToken(RPAREN); }
-"{"                         { printToken(LBRACE); }
-"}"                         { printToken(RBRACE); }
-"["                         { printToken(LBRACK); }
-"]"                         { printToken(RBRACK); }
-"="                         { printToken(ASSIGN); }
-{RELOP}                     { printToken(RELOP); }
-{BINOP}                     { printToken(BINOP); }
-{ID}                        { printToken(ID); }
-{NUM}                       { printToken(NUM); }
-{NUM_B}                     { printToken(NUM_B); }
+"byte"  {return AddTokenType(TOKEN_BYTE);}
 
-{WHITE_SPACE}              { /* skip whitespace */ }
+"bool"  {return AddTokenType(TOKEN_BOOL);}
+"and" {return AddTokenType(TOKEN_AND);}
+
+"or" {return AddTokenType(TOKEN_OR);}
+
+"not" {return AddTokenType(TOKEN_NOT);}
+"true"                      {return AddTokenType(TOKEN_TRUE);}
+"false"                     {return AddTokenType(TOKEN_FALSE);}
+"return"                    {return AddTokenType(TOKEN_RETURN);}
+"if"                        {return AddTokenType(TOKEN_IF);}
+"else"                      {return AddTokenType(TOKEN_ELSE);}
+"while"                     {return AddTokenType(TOKEN_WHILE);}
+"break"                     {return AddTokenType(TOKEN_BREAK);}
+"continue"                  {return AddTokenType(TOKEN_CONTINUE);}
+
+";"         {return AddTokenType(TOKEN_SC);}
+","         { return AddTokenType(TOKEN_COMMA); }
+"("         { return AddTokenType(TOKEN_LPAREN); }
+")"         { return AddTokenType(TOKEN_RPAREN); }
+"{"         { return AddTokenType(TOKEN_LBRACE); }
+"}"         { return AddTokenType(TOKEN_RBRACE); }
+"["         { return AddTokenType(TOKEN_LBRACK); }
+"]"         { return AddTokenType(TOKEN_RBRACK); }
+"="         { return AddTokenType(TOKEN_ASSIGN); }
+">"         { return AddTokenType(TOKEN_GT); }
+"<"         { return AddTokenType(TOKEN_LT); }
+">="        { return AddTokenType(TOKEN_GE); }
+"<="        { return AddTokenType(TOKEN_LE); }
+"=="        { return AddTokenType(TOKEN_EQ); }
+"!="        { return AddTokenType(TOKEN_NE); }
+
+"+"         { return AddTokenType(TOKEN_PLUS); }
+"-"         { return AddTokenType(TOKEN_MINUS); }
+"*"         { return AddTokenType(TOKEN_MUL); }
+"/"         { return AddTokenType(TOKEN_DIV); }
+
+{ID}                        { printToken(TOKEN_ID);
+                              yylval = std::make_shared<ast::Id>(yytext);
+                              return TOKEN_ID;
+                            }
+
+{NUM}                       { printToken(TOKEN_NUM);
+                              yylval = std::make_shared<ast::Num>(yytext);
+                              return TOKEN_NUM;
+                            }
+
+{NUM_B}                     { printToken(TOKEN_NUM_B);
+                              yylval = std::make_shared<ast::NumB>(yytext);
+                              return TOKEN_NUM_B;
+                            }
+
+{WHITE_SPACE}               { /* skip */ }
 
 "//"                        { BEGIN(COMMENT_STATE); }
-<COMMENT_STATE>[^\n]*       { printToken(COMMENT); BEGIN(INITIAL); }
+<COMMENT_STATE>[^\n]*       { printToken(TOKEN_COMMENT); BEGIN(INITIAL); }
 
 {QUOTE}                     { BEGIN(STRING_STATE); }
-<STRING_STATE>{BLACKSLASH}  {string_buffer[string_len++] = yytext[0];
-                            BEGIN(BLACKSLASH_STATE);}
+
+<STRING_STATE>{BLACKSLASH}  { string_buffer[string_len++] = yytext[0];
+                              BEGIN(BLACKSLASH_STATE);
+                            }
+
 <STRING_STATE>{CHAR}        { string_buffer[string_len++] = yytext[0]; }
 
-<STRING_STATE>{QUOTE}       { processString(); BEGIN(INITIAL); }
+<STRING_STATE>{QUOTE}       {
+                                processString();
+                                printToken(TOKEN_STRING);
+                                BEGIN(INITIAL);
+                                return TOKEN_STRING;
+                            }
+
 <STRING_STATE>\n            { errorLex(); }
 
-<BLACKSLASH_STATE>{CHAR}|{QUOTE} {string_buffer[string_len++] = yytext[0];BEGIN(STRING_STATE);}
-<BLACKSLASH_STATE>\n            {  errorLex(); }
+<BLACKSLASH_STATE>{CHAR}|{QUOTE}
+                            { string_buffer[string_len++] = yytext[0];
+                              BEGIN(STRING_STATE);
+                            }
 
-.                           {  errorLex(); }
+<BLACKSLASH_STATE>\n        { errorLex(); }
+
+.                           { errorLex(); }
+
 
 %%
 
@@ -162,7 +207,7 @@ void processString() {
         string_buffer[index++] = string_buffer[i];
     }
     string_buffer[index] = '\0';
-    errorLex();
+    llval = std::make_shared<ast::String>(string_buffer);
    
     empty_buffer(string_len);
 }
@@ -181,5 +226,10 @@ void printToken(enum tokentype token) {
 }
 
 void errorLex(){
-    errorLex();
+    output::errorLex(lineno);
+}
+
+tokentype AddTokenType( tokentype token){
+    printToken(token);
+    return token;
 }

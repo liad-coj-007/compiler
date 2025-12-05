@@ -2,6 +2,7 @@
 
 #include "nodes.hpp"
 #include "output.hpp"
+#include "tokens.hpp"
 
 // bison declarations
 extern int yylineno;

@@ -2,53 +2,40 @@
 #define BUFFER_SIZE 1024
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#include "parser.tab.h"      
 #include "output.hpp"
 #include "nodes.hpp"
-#include "tokens.hpp"
-#include "parser.tab.h"
 
+extern int yylineno;
+extern YYSTYPE yylval;
 
+char string_buffer[BUFFER_SIZE] = {0};
+int string_len = 0;
 
-char string_buffer[BUFFER_SIZE] = {0};         // buffer to hold string
-int string_len = 0;                     // length of the string
-
-int hexToInt(char c);                   // convert hex char to int
-int processHex(int i);                  // converts hex from string buffer to int
-int processEscapeSequence(int i);       // covert escape sequence from string buffer to char
-void processString();                   // deal with escape sequences in strings
-void printToken(enum tokentype token);  // print token function
-
-
-/**
- * @brief empty the buffer of the string
-*/
-void empty_buffer(int size); 
-/**
- * @brief send a lex error msg
-*/
+int hexToInt(char c);
+int processHex(int i);
+int processEscapeSequence(int i);
+void processString();
+void printToken(int token);
+void empty_buffer(int size);
 void errorLex();
 
-tokentype AddTokenType( tokentype token);
-
+int AddToken(int token);
 %}
 
 %option yylineno
 %option noyywrap
 
-LETTER      ([a-z]|[A-Z])
+LETTER      [a-zA-Z]
 DIGIT       [0-9]
 NOT0DIGIT   [1-9]
-CHAR   [\x20-\x21\x23-\x7E]
+CHAR        [\x20-\x21\x23-\x7E]
 
 ID          {LETTER}({LETTER}|{DIGIT})*
 NUM         (0|{NOT0DIGIT}{DIGIT}*)
 NUM_B       {NUM}b
-
-RELOP       (>=?|<=?|==|!=)
-BINOP       (\+|\-|\*|\/)
-
-BLACKSLASH   \\
-QUOTE       \"
 WHITE_SPACE [ \t\r\n ]
 
 %x COMMENT_STATE
@@ -56,94 +43,103 @@ WHITE_SPACE [ \t\r\n ]
 %x BLACKSLASH_STATE
 
 %%
-"void"  {return AddTokenType(TOKEN_VOID);}
 
-"int"   {return AddTokenType(TOKEN_INT);}
+"void"          { return AddToken(VOID); }
+"int"           { return AddToken(INT); }
+"byte"          { return AddToken(BYTE); }
+"bool"          { return AddToken(BOOL); }
 
-"byte"  {return AddTokenType(TOKEN_BYTE);}
+"and"           { return AddToken(AND); }
+"or"            { return AddToken(OR); }
+"not"           { return AddToken(NOT); }
 
-"bool"  {return AddTokenType(TOKEN_BOOL);}
-"and" {return AddTokenType(TOKEN_AND);}
+"true"          { return AddToken(TRUE); }
+"false"         { return AddToken(FALSE); }
 
-"or" {return AddTokenType(TOKEN_OR);}
+"return"        { return AddToken(RETURN); }
+"if"            { return AddToken(IF); }
+"else"          { return AddToken(ELSE); }
+"while"         { return AddToken(WHILE); }
+"break"         { return AddToken(BREAK); }
+"continue"      { return AddToken(CONTINUE); }
 
-"not" {return AddTokenType(TOKEN_NOT);}
-"true"                      {return AddTokenType(TOKEN_TRUE);}
-"false"                     {return AddTokenType(TOKEN_FALSE);}
-"return"                    {return AddTokenType(TOKEN_RETURN);}
-"if"                        {return AddTokenType(TOKEN_IF);}
-"else"                      {return AddTokenType(TOKEN_ELSE);}
-"while"                     {return AddTokenType(TOKEN_WHILE);}
-"break"                     {return AddTokenType(TOKEN_BREAK);}
-"continue"                  {return AddTokenType(TOKEN_CONTINUE);}
+";"             { return AddToken(SC); }
+","             { return AddToken(COMMA); }
+"("             { return AddToken(LPAREN); }
+")"             { return AddToken(RPAREN); }
+"{"             { return AddToken(LBRACE); }
+"}"             { return AddToken(RBRACE); }
+"["             { return AddToken(LBRACK); }
+"]"             { return AddToken(RBRACK); }
 
-";"         {return AddTokenType(TOKEN_SC);}
-","         { return AddTokenType(TOKEN_COMMA); }
-"("         { return AddTokenType(TOKEN_LPAREN); }
-")"         { return AddTokenType(TOKEN_RPAREN); }
-"{"         { return AddTokenType(TOKEN_LBRACE); }
-"}"         { return AddTokenType(TOKEN_RBRACE); }
-"["         { return AddTokenType(TOKEN_LBRACK); }
-"]"         { return AddTokenType(TOKEN_RBRACK); }
-"="         { return AddTokenType(TOKEN_ASSIGN); }
-">"         { return AddTokenType(TOKEN_GT); }
-"<"         { return AddTokenType(TOKEN_LT); }
-">="        { return AddTokenType(TOKEN_GE); }
-"<="        { return AddTokenType(TOKEN_LE); }
-"=="        { return AddTokenType(TOKEN_EQ); }
-"!="        { return AddTokenType(TOKEN_NE); }
+"="             { return AddToken(ASSIGN); }
+">"             { return AddToken(GT); }
+"<"             { return AddToken(LT); }
+">="            { return AddToken(GE); }
+"<="            { return AddToken(LE); }
+"=="            { return AddToken(EQ); }
+"!="            { return AddToken(NE); }
 
-"+"         { return AddTokenType(TOKEN_PLUS); }
-"-"         { return AddTokenType(TOKEN_MINUS); }
-"*"         { return AddTokenType(TOKEN_MUL); }
-"/"         { return AddTokenType(TOKEN_DIV); }
+"+"             { return AddToken(PLUS); }
+"-"             { return AddToken(MINUS); }
+"*"             { return AddToken(MUL); }
+"/"             { return AddToken(DIV); }
 
-{ID}                        { printToken(TOKEN_ID);
-                              yylval = std::make_shared<ast::Id>(yytext);
-                              return TOKEN_ID;
-                            }
+{ID} {
+    printToken(ID);
+    yylval.node = std::make_shared<ast::Id>(yytext);
+    return ID;
+}
 
-{NUM}                       { printToken(TOKEN_NUM);
-                              yylval = std::make_shared<ast::Num>(yytext);
-                              return TOKEN_NUM;
-                            }
+{NUM} {
+    printToken(NUM);
+    yylval.node = std::make_shared<ast::Num>(yytext);
+    return NUM;
+}
 
-{NUM_B}                     { printToken(TOKEN_NUM_B);
-                              yylval = std::make_shared<ast::NumB>(yytext);
-                              return TOKEN_NUM_B;
-                            }
+{NUM_B} {
+    printToken(NUM_B);
+    yylval.node = std::make_shared<ast::NumB>(yytext);
+    return NUM_B;
+}
 
-{WHITE_SPACE}               { /* skip */ }
+{WHITE_SPACE}   { /* skip */ }
 
-"//"                        { BEGIN(COMMENT_STATE); }
-<COMMENT_STATE>[^\n]*       { printToken(TOKEN_COMMENT); BEGIN(INITIAL); }
+"//"                { BEGIN(COMMENT_STATE); }
+<COMMENT_STATE>[^\n]* {
+    printToken(COMMENT);
+    BEGIN(INITIAL);
+}
 
-{QUOTE}                     { BEGIN(STRING_STATE); }
+\"                  { BEGIN(STRING_STATE); }
 
-<STRING_STATE>{BLACKSLASH}  { string_buffer[string_len++] = yytext[0];
-                              BEGIN(BLACKSLASH_STATE);
-                            }
+<STRING_STATE>\\ {
+    string_buffer[string_len++] = '\\';
+    BEGIN(BLACKSLASH_STATE);
+}
 
-<STRING_STATE>{CHAR}        { string_buffer[string_len++] = yytext[0]; }
+<STRING_STATE>{CHAR} {
+    string_buffer[string_len++] = yytext[0];
+}
 
-<STRING_STATE>{QUOTE}       {
-                                processString();
-                                printToken(TOKEN_STRING);
-                                BEGIN(INITIAL);
-                                return TOKEN_STRING;
-                            }
+<STRING_STATE>\" {
+    processString();
+    printToken(STRING);
+    yylval.node = std::make_shared<ast::String>(string_buffer);
+    BEGIN(INITIAL);
+    return STRING;
+}
 
-<STRING_STATE>\n            { errorLex(); }
+<STRING_STATE>\n    { errorLex(); }
 
-<BLACKSLASH_STATE>{CHAR}|{QUOTE}
-                            { string_buffer[string_len++] = yytext[0];
-                              BEGIN(STRING_STATE);
-                            }
+<BLACKSLASH_STATE>{CHAR}|\" {
+    string_buffer[string_len++] = yytext[0];
+    BEGIN(STRING_STATE);
+}
 
-<BLACKSLASH_STATE>\n        { errorLex(); }
+<BLACKSLASH_STATE>\n { errorLex(); }
 
-.                           { errorLex(); }
-
+.                   { errorLex(); }
 
 %%
 
@@ -221,7 +217,7 @@ void empty_buffer(int size){
 
 
 
-void printToken(enum tokentype token) {
+void printToken(int token) {
     // output::printToken(yylineno, token, yytext);
 }
 
@@ -229,7 +225,7 @@ void errorLex(){
     output::errorLex(lineno);
 }
 
-tokentype AddTokenType( tokentype token){
+int AddToken(int token){
     printToken(token);
     return token;
 }

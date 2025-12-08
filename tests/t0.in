@@ -1,0 +1,14 @@
+void main(
+    int x, bool f2
+    ) { 
+        if (true) 
+            if (false) 
+                a(); 
+            else b(); 
+        else 
+            if (x) 
+                c(); 
+            else d(); 
+
+
+    }

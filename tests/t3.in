@@ -1,0 +1,17 @@
+
+
+int main(){
+    int i = 0;
+    int length = 3;
+    while(i < length){
+        i = i+1;
+        if(i == 0){
+            print("wow");
+        }else if (i == 1){
+            print("lol");
+        }else {
+            print("fuck!");
+            break;
+        }
+    }
+}

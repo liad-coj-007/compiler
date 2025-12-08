@@ -9,3 +9,6 @@ all: clean
 	$(CC) $(CFLAGS) -o hw2 *.c *.cpp
 clean:
 	rm -f lex.yy.* parser.tab.* hw2
+test: all
+	clear
+	./run_tests

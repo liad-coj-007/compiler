@@ -472,7 +472,7 @@ namespace ast {
         Funcs() = default;
 
         // Constructor that receives the first function declaration
-
+        Funcs(std::shared_ptr<FuncDecl> func);
         // Method to add a function declaration at the beginning of the list
         void push_front(const std::shared_ptr<FuncDecl> &func);
 

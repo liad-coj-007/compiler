@@ -1,0 +1,36 @@
+#!/bin/bash
+
+TEST_DIR="tests"
+EXEC="./hw2"
+
+GREEN="\033[1;32m"
+RED="\033[1;31m"
+NC="\033[0m"
+
+tmp="tests/tmp"
+
+for infile in "$TEST_DIR"/*.in; do
+    [ -e "$infile" ] || continue
+
+    base="$(basename "$infile" .in)"
+    outfile="$TEST_DIR/$base.out"
+    resfile="$TEST_DIR/$base.res"
+
+    if [[ ! -f "$outfile" ]]; then
+        echo -e "${RED}[MISSING OUT]${NC} $base.out not found"
+        continue
+    fi
+
+    # Run program and capture stdout + stderr
+    "$EXEC" < "$infile" > "$resfile" 2>&1
+
+    # Diff with unified format
+    diff "$outfile" "$resfile" > "$tmp"
+
+    if [[ ! -s "$tmp" ]]; then
+        echo -e "$base: ${GREEN}[PASS]${NC}"
+    else
+        echo -e "$base: ${RED}[FAIL]${NC}"
+        cat "$tmp"
+    fi
+done
